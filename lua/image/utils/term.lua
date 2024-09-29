@@ -7,6 +7,15 @@ local cached_size = {
   cell_height = 0,
 }
 
+local function is_wsl()
+  local output = vim.fn.systemlist("uname -r")[1] or ""
+  return string.find(output, "microsoft") ~= nil or string.find(output, "WSL") ~= nil
+end
+
+-- https://github.com/microsoft/terminal/issues/8581
+local hardcoded_x = 2560
+local hardcoded_y = 1440
+
 -- https://github.com/edluffy/hologram.nvim/blob/main/lua/hologram/state.lua#L15
 local update_size = function()
   local ffi = require("ffi")
@@ -33,14 +42,25 @@ local update_size = function()
   local sz = ffi.new("winsize")
   assert(ffi.C.ioctl(1, TIOCGWINSZ, sz) == 0, "Failed to get terminal size")
 
-  cached_size = {
-    screen_x = sz.xpixel,
-    screen_y = sz.ypixel,
-    screen_cols = sz.col,
-    screen_rows = sz.row,
-    cell_width = sz.xpixel / sz.col,
-    cell_height = sz.ypixel / sz.row,
-  }
+  if is_wsl() then
+    cached_size = {
+      screen_x = hardcoded_x,
+      screen_y = hardcoded_y,
+      screen_cols = sz.col,
+      screen_rows = sz.row,
+      cell_width = hardcoded_x / sz.col,
+      cell_height = hardcoded_y / sz.row,
+    }
+  else
+    cached_size = {
+      screen_x = sz.xpixel,
+      screen_y = sz.ypixel,
+      screen_cols = sz.col,
+      screen_rows = sz.row,
+      cell_width = sz.xpixel / sz.col,
+      cell_height = sz.ypixel / sz.row,
+    }
+  end
 end
 
 update_size()
