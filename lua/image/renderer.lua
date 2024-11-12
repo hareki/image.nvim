@@ -1,4 +1,3 @@
-local magick = require("image/magick")
 local utils = require("image/utils")
 
 -- Images get resized and cropped to fit in the context they are rendered in.
@@ -54,8 +53,8 @@ local render = function(image)
   end
 
   -- rendered size cannot be larger than the image itself
-  width = math.min(width, image_columns)
-  height = math.min(height, image_rows)
+  -- width = math.min(width, image_columns)
+  -- height = math.min(height, image_rows)
 
   -- screen max width/height
   width = math.min(width, term_size.screen_cols)
@@ -120,8 +119,12 @@ local render = function(image)
 
     -- global max window width/height percentage
     if type(state.options.max_width_window_percentage) == "number" then
-      width =
-        math.min(width, math.floor((window.width - global_offsets.x) * state.options.max_width_window_percentage / 100))
+      width = math.min(
+        -- original
+        width,
+        -- max_window_percentage
+        math.floor((window.width - global_offsets.x) * state.options.max_width_window_percentage / 100)
+      )
     end
     if type(state.options.max_height_window_percentage) == "number" then
       height = math.min(
@@ -233,18 +236,13 @@ local render = function(image)
               local virt_height = #(mark_opts.virt_lines or {})
               return { id = mark_id, row = mark_row, col = mark_col, height = virt_height }
             end,
-            vim.api.nvim_buf_get_extmarks(
-              image.buffer,
-              -1,
-              { topline - 1, 0 },
-              { original_y - 1, 0 },
-              { details = true }
-            )
+            vim.api.nvim_buf_get_extmarks(image.buffer, -1, { topline - 1, 0 }, { original_y, 0 }, { details = true })
           )
 
           local extmark_y_offset = topfill
           for _, mark in ipairs(extmarks) do
             if image.extmark and image.extmark.id == mark.id then goto continue end
+            if mark.row > original_y then goto continue end
             if mark.row ~= original_y and mark.id ~= image:get_extmark_id() then
               -- check the mark is inside a fold, and skip adding the offset if it is
               for fold_start, fold_end in pairs(folded_ranges) do
@@ -366,7 +364,7 @@ local render = function(image)
 
   -- compute resize
   local resize_hash = ("%d-%d"):format(pixel_width, pixel_height)
-  if image.image_width > pixel_width then needs_resize = true end
+  if image.image_width ~= pixel_width then needs_resize = true end
 
   -- TODO make this non-blocking
 
@@ -382,22 +380,10 @@ local render = function(image)
         image.resize_hash = resize_hash
       else
         -- perform resize
-        local resized_image = magick.load_image(image.path)
-        if resized_image then
-          -- utils.debug(("resizing image %s to %dx%d"):format(image.path, pixel_width, pixel_height))
-          --
-          resized_image:set_format("png")
-          resized_image:scale(pixel_width, pixel_height)
-
-          local tmp_path = state.tmp_dir .. "/" .. utils.base64.encode(image.id) .. "-resized-" .. resize_hash .. ".png"
-          resized_image:write(tmp_path)
-          resized_image:destroy()
-
-          image.resized_path = tmp_path
-          image.resize_hash = resize_hash
-
-          image_cache.resized[resize_hash] = tmp_path
-        end
+        local tmp_path = state.tmp_dir .. "/" .. vim.base64.encode(image.id) .. "-resized-" .. resize_hash .. ".png"
+        image.resized_path = state.processor.resize(image.path, pixel_width, pixel_height, tmp_path)
+        image.resize_hash = resize_hash
+        image_cache.resized[resize_hash] = image.resized_path
       end
     end
   else
@@ -418,20 +404,16 @@ local render = function(image)
         image.crop_hash = crop_hash
       else
         -- perform crop
-        -- utils.debug(("cropping image %s to %dx%d"):format(image.path, pixel_width, cropped_pixel_height))
-
-        local cropped_image = magick.load_image(image.resized_path or image.path)
-        cropped_image:set_format("png")
-        cropped_image:crop(pixel_width, cropped_pixel_height, 0, crop_offset_top)
-
-        local tmp_path = state.tmp_dir .. "/" .. utils.base64.encode(image.id) .. "-cropped-" .. crop_hash .. ".png"
-        cropped_image:write(tmp_path)
-        cropped_image:destroy()
-
-        image.cropped_path = tmp_path
-
+        local tmp_path = state.tmp_dir .. "/" .. vim.base64.encode(image.id) .. "-cropped-" .. crop_hash .. ".png"
+        image.cropped_path = state.processor.crop(
+          image.resized_path or image.path,
+          0,
+          crop_offset_top,
+          pixel_width,
+          cropped_pixel_height,
+          tmp_path
+        )
         image.crop_hash = crop_hash
-
         image_cache.cropped[crop_hash] = image.cropped_path
       end
     end

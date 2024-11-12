@@ -1,9 +1,12 @@
 local utils = require("image/utils")
+local processors = require("image/processors")
+local report = require("image/report")
 
 ---@type Options
 local default_options = {
   -- backend = "ueberzug",
   backend = "kitty",
+  processor = "magick_rock",
   integrations = {
     markdown = {
       enabled = true,
@@ -40,6 +43,8 @@ local default_options = {
 local state = {
   ---@diagnostic disable-next-line: assign-type-mismatch
   backend = nil,
+  ---@diagnostic disable-next-line: assign-type-mismatch
+  processor = nil,
   options = default_options,
   images = {},
   extmarks_namespace = vim.api.nvim_create_namespace("image.nvim"),
@@ -59,16 +64,21 @@ api.setup = function(options)
   state.options = opts
 
   vim.schedule(function()
-    local magick = require("image/magick")
-    -- check that magick is available
-    if not magick.has_magick then
-      vim.api.nvim_err_writeln(
-        "image.nvim: magick rock not found, please install it and restart your editor. Error: "
-          .. vim.inspect(magick.magick)
-      )
-      return
+    if opts.processor == "magick_rock" then
+      local magick = require("image/magick")
+      -- check that magick is available
+      if not magick.has_magick then
+        vim.api.nvim_err_writeln(
+          "image.nvim: magick rock not found, please install it and restart your editor. Error: "
+            .. vim.inspect(magick.magick)
+        )
+        return
+      end
     end
   end)
+
+  -- load processor
+  state.processor = processors.get_processor(opts.processor)
 
   -- load backend
   local backend = require("image/backends/" .. opts.backend)
@@ -258,6 +268,28 @@ api.setup = function(options)
     end,
   })
 
+  -- auto-clear on VimSuspend and re-render on VimResume
+  local image_to_restore_on_resume = {}
+  vim.api.nvim_create_autocmd({ "VimSuspend" }, {
+    group = group,
+    callback = function()
+      local images = api.get_images()
+      for _, current_image in ipairs(images) do
+        current_image:clear()
+      end
+      image_to_restore_on_resume = images
+    end,
+  })
+  vim.api.nvim_create_autocmd({ "VimResume" }, {
+    group = group,
+    callback = function()
+      local images = image_to_restore_on_resume
+      for _, current_image in ipairs(images) do
+        current_image:render()
+      end
+    end,
+  })
+
   -- auto-toggle on editor focus change
   if
     state.options.editor_only_render_when_focused
@@ -351,6 +383,11 @@ api.setup = function(options)
       end
     end,
   })
+
+  -- add :ImageReport
+  vim.api.nvim_create_user_command("ImageReport", function()
+    api.create_report()
+  end, {})
 end
 
 local guard_setup = function()
@@ -443,6 +480,11 @@ api.get_images = function(opts)
     end
   end
   return images
+end
+
+api.create_report = function()
+  guard_setup()
+  return report.create(state)
 end
 
 return api
