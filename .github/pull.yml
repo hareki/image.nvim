@@ -2,4 +2,4 @@ version: "1"
 rules:
   - base: master
     upstream: 3rd:master
-    mergeMethod: rebase
+    mergeMethod: merge
