@@ -11,8 +11,10 @@ local cache = {}
 local render = function(image)
   local state = image.global_state
   local term_size = utils.term.get_size()
-  local image_rows = math.floor(image.image_height / term_size.cell_height)
-  local image_columns = math.floor(image.image_width / term_size.cell_width)
+  local scale_factor = 1.0
+  if type(state.options.scale_factor) == "number" then scale_factor = state.options.scale_factor end
+  local image_rows = math.floor(image.image_height / term_size.cell_height * scale_factor)
+  local image_columns = math.floor(image.image_width / term_size.cell_width * scale_factor)
   local image_cache = cache[image.original_path] or { resized = {}, cropped = {} }
 
   -- utils.debug(("renderer.render() %s"):format(image.id), {
@@ -117,20 +119,20 @@ local render = function(image)
     bounds.right = bounds.right
     if utils.offsets.get_border_shape(window.id).left > 0 then bounds.right = bounds.right + 1 end
 
-    -- global max window width/height percentage
-    if type(state.options.max_width_window_percentage) == "number" then
+    local max_width_window_percentage = image.max_width_window_percentage or state.options.max_width_window_percentage
+    local max_height_window_percentage = image.max_height_window_percentage
+      or state.options.max_height_window_percentage
+
+    if type(max_width_window_percentage) == "number" then
       width = math.min(
         -- original
         width,
         -- max_window_percentage
-        math.floor((window.width - global_offsets.x) * state.options.max_width_window_percentage / 100)
+        math.floor((window.width - global_offsets.x) * max_width_window_percentage / 100)
       )
     end
-    if type(state.options.max_height_window_percentage) == "number" then
-      height = math.min(
-        height,
-        math.floor((window.height - global_offsets.y) * state.options.max_height_window_percentage / 100)
-      )
+    if type(max_height_window_percentage) == "number" then
+      height = math.min(height, math.floor((window.height - global_offsets.y) * max_height_window_percentage / 100))
     end
   end
 
