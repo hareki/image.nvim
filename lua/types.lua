@@ -7,8 +7,12 @@
 ---@field clear fun(id?: string)
 ---@field get_images fun(opts?: { window?: number, buffer?: number, namespace?: string }): Image[]
 ---@field hijack_buffer fun(path: string, window?: number, buffer?: number, options?: ImageOptions): Image|nil
+---@field is_enabled fun(): boolean
+---@field enable fun()
+---@field disable fun()
 
 ---@class State
+---@field enabled boolean
 ---@field backend Backend
 ---@field options Options
 ---@field images { [string]: Image }
@@ -24,6 +28,7 @@
 ---@field download_remote_images? boolean
 ---@field clear_in_insert_mode? boolean
 ---@field only_render_image_at_cursor? boolean
+---@field only_render_image_at_cursor_mode? "inline"|"popup"
 ---@field filetypes? string[]
 ---@field resolve_image_path? function
 ---@field floating_windows? boolean
@@ -59,6 +64,8 @@
 ---@class ImageGeometry
 ---@field x? number
 ---@field y? number
+---@field row? number
+---@field col? number
 ---@field width? number
 ---@field height? number
 
@@ -126,6 +133,7 @@
 ---@field extmark? { id: number, row: number, col: number }
 ---@field last_modified? number
 ---@field has_extmark_moved fun (self:Image): (boolean, number?, number?)
+---@field ignore_global_max_size? boolean
 
 ---@class ImageProcessor
 --- We need to:
